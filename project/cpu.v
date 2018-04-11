@@ -39,6 +39,8 @@ wire [8:0] branch;  // Offset for branching, can be BR_Offset for branch to regi
 wire flush, ifid_en;
 wire [15:0] q_pc, q_instr;
 
+wire flush_ifid, flush_idex, flush_exmem, flush_memwb;
+
 wire Ctl_Data_Mem_en, Ctl_Data_Mem_wr, Ctl_WriteReg;
 wire [3:0] Ctl_DstReg, Ctl_opcode, q_SrcReg1, q_SrcReg2;
 wire [15:0] Data1, Data2;
