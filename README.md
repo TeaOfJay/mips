@@ -1,14 +1,14 @@
-### ECE 552 MIPS Project
+# ECE 552 MIPS Project
 
 
 ## Quick Git
-# Getting git
+### Getting git
 Git is a versioning system designed to keep track of your code. First, you have to make sure its installed. Get git [here](https://git-scm.com/).
 
-# About Git
+### About Git
 Now that you have git, you should have a git bash. This is a fancy term for essentially a minGW terminal that has git commands. MinGW is an environment in windows that emulates the Linux subsystem. In other words, it has (most) linux commands!
 
-# Git Commands
+### Git Commands
 Git has various commands to help you update your code on Github. Ironically, the versioning part of github is done automatically as you update your code.
 First, lets grab this repository!
 ```
