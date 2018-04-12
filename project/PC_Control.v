@@ -1,4 +1,4 @@
-module PC_Control(input [2:0] C, input [8:0] I, input [2:0] F, input [15:0] PC_in, output [15:0] PC_out);
+module PC_Control(input [2:0] C, input [8:0] I, input [2:0] F, input [15:0] PC_in, output flush, output [15:0] PC_out);
 
 wire signed [15:0] I_signext;
 wire signed [15:0] I_shft;
@@ -7,6 +7,8 @@ wire co0, co1, co2, co3, co4, co5, co6, co7, co8, co9, co10, co11, co12, co13, c
 
 
 assign I_signext = {{7{I[8]}}, I[8:0]};
+
+
 
 Shifter S0(.Shift_Out(I_shft), .Shift_In(I_signext), .Shift_Val(4'h1), .Mode(2'b00));
 
@@ -38,6 +40,17 @@ assign PC_out = ((C == 3'b000) & (~F[2])) 	    ? sum  :  // Not Equal
 		((C == 3'b110) & (F[1]))	    ? sum  :  // Overflow
 		((C == 3'b111))			    ? sum  :  // Unconditional
 						      PC_in;  // If conditions not met
+
+assign flush =  ((C == 3'b000) & (~F[2])) 	    ? 1'b1  :  // Not Equal
+		((C == 3'b001) & (F[2]))  	    ? 1'b1  :  // Equal
+		((C == 3'b010) & (~F[2]) & (~F[0])) ? 1'b1  :  // Greater Than
+		((C == 3'b011) & (F[0]))	    ? 1'b1  :  // Less Than
+		((C == 3'b100) & (F[2]))	    ? 1'b1  :  // Equal or
+		((C == 3'b100) & (~F[2]) & (~F[0])) ? 1'b1  :  // Greater Than
+		((C == 3'b101) & (F[2] | F[0]))	    ? 1'b1  :  // Less than or Equal
+		((C == 3'b110) & (F[1]))	    ? 1'b1  :  // Overflow
+		((C == 3'b111))			    ? 1'b1  :  // Unconditional
+						      1'b0;    // If conditions not met
 
 
 endmodule

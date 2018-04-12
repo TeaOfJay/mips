@@ -36,16 +36,18 @@ wire [15:0] BR_Offset; // Offset for calculation of Branch to register in order 
 wire [8:0] branch;  // Offset for branching, can be BR_Offset for branch to register or Branch_Imm for regular branch
 
 ///////////////Pipelining wire additions//////////
-wire flush, ifid_en;
-wire [15:0] q_pc, q_instr;
+wire flush, q_flush, ex_flush;
 
-wire flush_ifid, flush_idex, flush_exmem, flush_memwb;
+wire ifid_en;
+wire [15:0] q_pc, q_instr, d_next_address;
 
 wire Ctl_Data_Mem_en, Ctl_Data_Mem_wr, Ctl_WriteReg;
 wire [3:0] Ctl_DstReg, Ctl_opcode, q_SrcReg1, q_SrcReg2;
 wire [15:0] Data1, Data2;
+wire [15:0] out_instr;
 
 wire ex_Data_Mem_en, ex_Data_Mem_wr, ex_WriteReg;
+wire PC_Ctl_flush;
 wire [3:0] ex_DstReg, ex_opcode;
 wire [3:0] q_imm, q_offset;
 wire [2:0] q_condition;
@@ -53,9 +55,12 @@ wire [7:0] q_Load_Imm;
 wire [8:0] q_Branch_Imm;
 wire [15:0] q_SrcData1, q_SrcData2;
 
-wire exmem_en, q_Data_Mem_en, q_Data_Mem_wr, mem_WriteReg, from_mem, mem_from_mem;
+wire exmem_en, q_Data_Mem_en, q_Data_Mem_wr, mem_WriteReg, from_mem, mem_from_mem, exmem_Data_Mem_en, exmem_Data_Mem_wr, exmem_WriteReg;
 wire [3:0] mem_DstReg;
 wire [15:0] q_Data_Mem_In, q_Data_Mem_Addr, mem_DstData;
+
+wire sub2_ov;
+wire [15:0] q_Branch_Imm_sub2;
 
 wire q_from_mem, memwb_en, q_WriteReg;
 wire [3:0] q_DstReg;
@@ -64,21 +69,23 @@ wire [15:0] q_MemData, q_DstData;
 wire [15:0] wb_data;
 
 wire ex_hlt, mem_hlt;
+
+wire next_stall, stall;
 /////////////////////////////////////////////////
 
 //////////////////////////////////////
-assign ifid_en = 1'b1; //    NEED   //
-assign idex_en = 1'b1; //     TO    // ..maybe..
-assign exmem_en = 1'b1;//   CHANGE  //
-assign memwb_en = 1'b1;//    THIS   //
+assign ifid_en = (stall) ? 1'b0 : 1'b1;
+assign idex_en = (stall) ? 1'b0 : 1'b1;
+assign exmem_en = 1'b1;
+assign memwb_en = 1'b1;
 //////////////////////////////////////
 
 
 assign Instr_En = (~rst_n) ? 1'b0 : 1'b1; 
 
-assign next_address = address_inc; //Incremented PC or Branch.  THIS NEEDS TO BE FIGURED OUT FOR BRANCHES
+assign next_address = ((ex_opcode[3:1] == 3'b110) & ~ex_flush) ? new_pc : address_inc; //Incremented PC or Branch.  THIS NEEDS TO BE FIGURED OUT FOR BRANCHES
 
-assign pc_wen = (rst_n | hlt) ? 1'b1 : 1'b0;
+assign pc_wen = (~rst_n | hlt | stall) ? 1'b0 : 1'b1;
 
 // 16 bit register to hold current pc value
 dff_16bit program(.q(pc), .d(next_address), .wen(pc_wen), .clk(clk), .rst(~rst_n)); 
@@ -87,8 +94,9 @@ dff_16bit program(.q(pc), .d(next_address), .wen(pc_wen), .clk(clk), .rst(~rst_n
 memory1c Imem(.data_out(Instr), .data_in(Instr_Data_In), .addr(pc), .enable(Instr_En), .wr(1'b0), .clk(clk), .rst(~rst_n)); 
 
 // IF/ID Pipeline Stage
-ifid dff_ifid(.clk(clk), .rst(~rst_n), .flush(flush), .ifid_en(ifid_en), .q_nextpc(q_pc), .q_instr(q_instr), .d_nextpc(pc), .d_instr(Instr));
+ifid dff_ifid(.clk(clk), .rst(~rst_n), .flush(flush), .ifid_en(ifid_en), .q_flush(q_flush), .q_nextpc(q_pc), .q_instr(out_instr), .d_nextpc(pc), .d_instr(Instr));
 
+assign q_instr = out_instr; //(stall) ? 16'h0000 : out_instr; //Create bubble upon stall
 
 Control control(.clk(clk), .rst(~rst_n), .instr(q_instr), .opcode(Ctl_opcode), .Data_Mem_en(Ctl_Data_Mem_en), .Data_Mem_wr(Ctl_Data_Mem_wr), .DstReg(Ctl_DstReg), .WriteReg(Ctl_WriteReg));
 
@@ -107,16 +115,25 @@ assign SrcReg2 = (Ctl_opcode[3:1] == 3'b101) ? Rd : Rt;
 // Registers
 RegisterFile RegFile(.clk(clk), .rst(~rst_n), .SrcReg1(SrcReg1), .SrcReg2(SrcReg2), .DstReg(q_DstReg), .WriteReg(q_WriteReg), .DstData(wb_data), .SrcData1(SrcData1), .SrcData2(SrcData2));
 
-idex dff_idex(.clk(clk), .rst(~rst_n), .idex_en(idex_en), .d_Data_Mem_en(Ctl_Data_Mem_en), .d_Data_Mem_wr(Ctl_Data_Mem_wr), .d_WriteReg(Ctl_WriteReg), .d_DstReg(Ctl_DstReg), .d_opcode(Ctl_opcode), .d_SrcData1(SrcData1), .d_SrcData2(SrcData2), .d_SrcReg1(SrcReg1), .d_SrcReg2(SrcReg2), .d_imm(imm), .d_Load_Imm(Load_Imm), .d_offset(offset), .d_Branch_Imm(Branch_Imm), .d_condition(condition), .q_Data_Mem_en(ex_Data_Mem_en), .q_Data_Mem_wr(ex_Data_Mem_wr), .q_WriteReg(ex_WriteReg), .q_DstReg(ex_DstReg), .q_opcode(ex_opcode), .q_SrcData1(q_SrcData1), .q_SrcData2(q_SrcData2), .q_SrcReg1(q_SrcReg1), .q_SrcReg2(q_SrcReg2), .q_imm(q_imm), .q_Load_Imm(q_Load_Imm), .q_offset(q_offset), .q_Branch_Imm(q_Branch_Imm), .q_condition(q_condition));
+idex dff_idex(.clk(clk), .rst(~rst_n), .flush(flush), .d_flush(q_flush), .idex_en(idex_en), .d_Data_Mem_en(Ctl_Data_Mem_en), .d_Data_Mem_wr(Ctl_Data_Mem_wr), .d_WriteReg(Ctl_WriteReg), .d_DstReg(Ctl_DstReg), .d_opcode(Ctl_opcode), .d_SrcData1(SrcData1), .d_SrcData2(SrcData2), .d_SrcReg1(SrcReg1), .d_SrcReg2(SrcReg2), .d_imm(imm), .d_Load_Imm(Load_Imm), .d_offset(offset), .d_Branch_Imm(Branch_Imm), .d_condition(condition), .ex_flush(ex_flush), .q_Data_Mem_en(ex_Data_Mem_en), .q_Data_Mem_wr(ex_Data_Mem_wr), .q_WriteReg(ex_WriteReg), .q_DstReg(ex_DstReg), .q_opcode(ex_opcode), .q_SrcData1(q_SrcData1), .q_SrcData2(q_SrcData2), .q_SrcReg1(q_SrcReg1), .q_SrcReg2(q_SrcReg2), .q_imm(q_imm), .q_Load_Imm(q_Load_Imm), .q_offset(q_offset), .q_Branch_Imm(q_Branch_Imm), .q_condition(q_condition));
 
 //Data Forwarding
-assign Data1 = (mem_WriteReg & (mem_DstReg != 4'b0000) & (q_SrcReg1 == mem_DstReg)) 	? mem_DstData :
-	       (q_WriteReg & (q_DstReg != 4'b0000) & (q_SrcReg1 == q_DstReg)) 		? q_DstData   :
-											  q_SrcData1;
-assign Data2 = (mem_WriteReg & (mem_DstReg != 4'b0000) & (q_SrcReg2 == mem_DstReg)) 	? mem_DstData :
-	       (q_WriteReg & (q_DstReg != 4'b0000) & (q_SrcReg2 == q_DstReg)) 		? q_DstData   :
-											  q_SrcData2;
+assign Data1 = (mem_WriteReg & (mem_DstReg != 4'b0000) & (q_SrcReg1 == mem_DstReg) & mem_from_mem) 	? Data_Mem_Out : //Forward in mem stage after read from Dmem
+	       (mem_WriteReg & (mem_DstReg != 4'b0000) & (q_SrcReg1 == mem_DstReg))			? mem_DstData  : //Forward in mem stage from calculation
+	       (q_WriteReg & (q_DstReg != 4'b0000) & (q_SrcReg1 == q_DstReg)) 				? wb_data      : //Forward in wb stage
+											  		  q_SrcData1;	 //No forward
 
+assign Data2 = (mem_WriteReg & (mem_DstReg != 4'b0000) & (q_SrcReg2 == mem_DstReg) & mem_from_mem) 	? Data_Mem_Out : //Forward in mem stage after read from Dmem
+	       (mem_WriteReg & (mem_DstReg != 4'b0000) & (q_SrcReg2 == mem_DstReg))			? mem_DstData  : //Forward in mem stage from calculation
+	       (q_WriteReg & (q_DstReg != 4'b0000) & (q_SrcReg2 == q_DstReg)) 				? q_DstData    : //Forward in wb stage
+											  		  q_SrcData2;    //No forward
+
+//Pipeline Stall
+assign next_stall = (stall)										? 1'b0 :
+		    ((ex_Data_Mem_en & ~ex_Data_Mem_wr) & ((ex_DstReg == Rs) || (ex_DstReg == Rt)))	? 1'b1 :
+													  1'b0;
+
+dff dff_stall(.clk(clk), .rst(~rst_n), .wen(1'b1), .d(next_stall), .q(stall));
 
 assign DstData = (ex_opcode[3:1] == 3'b000) 							? CLA_Sum : //ADD/SUB
 		 (ex_opcode == 4'b0010)								? Red_Out : //RED
@@ -129,8 +146,9 @@ assign DstData = (ex_opcode[3:1] == 3'b000) 							? CLA_Sum : //ADD/SUB
 
 assign from_mem = (ex_opcode == 4'b1000);
 
-assign ex_hlt = (ex_opcode == 4'b1111);
+assign ex_hlt = ((ex_opcode == 4'b1111) & ~ex_flush);
 
+assign flush = (PC_Ctl_flush & (ex_opcode[3:1] == 3'b110) & ~ex_flush);
 
 // PADDSB function
 PSA_16bit PADDSB(.Sum(PADDSB_Sum), .Error(Error_dont_care), .A(Data1), .B(Data2));
@@ -141,10 +159,13 @@ Shifter Shift(.Shift_Out(Shift_Out), .Shift_In(Data1), .Shift_Val(q_imm), .Mode(
 assign Load_Byte = (ex_opcode[0]) ? ((Data2 & 16'hFF00) | q_Load_Imm) : 
 				 ((Data2 & 16'h00FF) | {q_Load_Imm, {8{1'b0}}});
 
-assign branch = (ex_opcode[0]) ? BR_Offset[9:1] : q_Branch_Imm;
+
+CLA_16bit sub2(.In1({{7{q_Branch_Imm[8]}}, q_Branch_Imm}), .In2(16'hFFFE), .cin(1'b0), .Sum(q_Branch_Imm_sub2), .Ov(sub2_ov)); // Subtract two for branching
+
+assign branch = (ex_opcode[0]) ? BR_Offset[9:1] : q_Branch_Imm_sub2;
 
 // Branching functions
-PC_Control pc_control(.C(q_condition), .I(branch), .F(flags), .PC_in(address_inc), .PC_out(new_pc));
+PC_Control pc_control(.C(q_condition), .I(branch), .F(flags), .PC_in(address_inc), .flush(PC_Ctl_flush), .PC_out(new_pc));
 
 assign ALU_In1 = (ex_opcode[3]) ? (Data1 & 16'hFFFE) : Data1;
 assign ALU_In2 = (ex_opcode[3]) ? {{12{q_offset[3]}}, q_offset[2:0], 1'b0} : Rt_add;
@@ -182,8 +203,12 @@ RED red(.In1(Data1), .In2(Data2), .Out(Red_Out));
 // XOR function
 XOR_16bit xor16(.A(Data1), .B(Data2), .X(XOR_Out));
 
+assign exmem_Data_Mem_en = (stall) ? 1'b0 : ex_Data_Mem_en;
+assign exmem_Data_Mem_wr = (stall) ? 1'b0 : ex_Data_Mem_wr;
+assign exmem_WriteReg    = (stall) ? 1'b0 : ex_WriteReg;
+
 // EX/MEM Pipeline
-exmem dff_exmem(.clk(clk), .rst(~rst_n), .exmem_en(exmem_en), .d_hlt(ex_hlt), .d_from_mem(from_mem), .d_Data_Mem_en(ex_Data_Mem_en), .d_Data_Mem_wr(ex_Data_Mem_wr), .d_WriteReg(ex_WriteReg), .d_DstReg(ex_DstReg), .d_Data_Mem_In(q_SrcData2), .d_Data_Mem_Addr(CLA_Sum), .d_DstData(DstData), .q_from_mem(mem_from_mem), .q_Data_Mem_en(q_Data_Mem_en), .q_Data_Mem_wr(q_Data_Mem_wr), .q_hlt(mem_hlt), .q_WriteReg(mem_WriteReg), .q_DstReg(mem_DstReg), .q_Data_Mem_In(q_Data_Mem_In), .q_Data_Mem_Addr(q_Data_Mem_Addr), .q_DstData(mem_DstData));
+exmem dff_exmem(.clk(clk), .rst(~rst_n), .exmem_en(exmem_en), .d_hlt(ex_hlt), .d_from_mem(from_mem), .d_Data_Mem_en(exmem_Data_Mem_en), .d_Data_Mem_wr(exmem_Data_Mem_wr), .d_WriteReg(exmem_WriteReg), .d_DstReg(ex_DstReg), .d_Data_Mem_In(q_SrcData2), .d_Data_Mem_Addr(CLA_Sum), .d_DstData(DstData), .q_from_mem(mem_from_mem), .q_Data_Mem_en(q_Data_Mem_en), .q_Data_Mem_wr(q_Data_Mem_wr), .q_hlt(mem_hlt), .q_WriteReg(mem_WriteReg), .q_DstReg(mem_DstReg), .q_Data_Mem_In(q_Data_Mem_In), .q_Data_Mem_Addr(q_Data_Mem_Addr), .q_DstData(mem_DstData));
 
 
 // Data Memory
