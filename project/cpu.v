@@ -91,7 +91,18 @@ assign pc_wen = (~rst_n | hlt | stall) ? 1'b0 : 1'b1;
 dff_16bit program(.q(pc), .d(next_address), .wen(pc_wen), .clk(clk), .rst(~rst_n)); 
 
 // Instruction Memory
-memory1c Imem(.data_out(Instr), .data_in(Instr_Data_In), .addr(pc), .enable(Instr_En), .wr(1'b0), .clk(clk), .rst(~rst_n)); 
+//memory1c Imem(.data_out(Instr), .data_in(Instr_Data_In), .addr(pc), .enable(Instr_En), .wr(1'b0), .clk(clk), .rst(~rst_n)); 
+cache icache(
+	.data_out(Instr),
+	.data_in(Instr_Data_In), 
+	.addr(pc), 
+	.enable(Instr_En), 
+	.wr(1'b0), 
+	.clk(clk), 
+	.rst(~rst_n),
+	.busy() 
+);
+
 
 // IF/ID Pipeline Stage
 ifid dff_ifid(.clk(clk), .rst(~rst_n), .flush(flush), .ifid_en(ifid_en), .q_flush(q_flush), .q_nextpc(q_pc), .q_instr(out_instr), .d_nextpc(pc), .d_instr(Instr));
@@ -212,7 +223,17 @@ exmem dff_exmem(.clk(clk), .rst(~rst_n), .exmem_en(exmem_en), .d_hlt(ex_hlt), .d
 
 
 // Data Memory
-memory1c Dmem(.data_out(Data_Mem_Out), .data_in(q_Data_Mem_In), .addr(q_Data_Mem_Addr), .enable(q_Data_Mem_en), .wr(q_Data_Mem_wr), .clk(clk), .rst(~rst_n));
+//memory1c Dmem(.data_out(Data_Mem_Out), .data_in(q_Data_Mem_In), .addr(q_Data_Mem_Addr), .enable(q_Data_Mem_en), .wr(q_Data_Mem_wr), .clk(clk), .rst(~rst_n));
+cache dcache(
+	.data_out(Data_Mem_Out),
+	.data_in(q_Data_Mem_In),
+	.addr(q_Data_Mem_Addr),
+	.enable(q_Data_Mem_en),
+	.wr(q_Data_Mem_wr),
+	.clk(clk),
+	.rst(~rst_n),
+	.busy()
+);
 
 // MEM/WB Pipeline
 memwb dff_memwb(.clk(clk), .rst(~rst_n), .memwb_en(memwb_en), .d_hlt(mem_hlt), .d_from_mem(mem_from_mem), .d_WriteReg(mem_WriteReg), .d_DstReg(mem_DstReg), .d_MemData(Data_Mem_Out), .d_DstData(mem_DstData), .q_hlt(hlt), .q_from_mem(q_from_mem), .q_WriteReg(q_WriteReg), .q_DstReg(q_DstReg), .q_MemData(q_MemData), .q_DstData(q_DstData));
