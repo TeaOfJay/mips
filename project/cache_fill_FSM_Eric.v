@@ -1,0 +1,53 @@
+module cache_fill_FSM(clk, rst_n, miss_detected, miss_address, fsm_busy, write_data_array, write_tag_array,memory_address, memory_data, memory_data_valid);
+input clk, rst_n;
+input miss_detected; // active high when tag match logic detects a miss
+input [15:0] miss_address; // address that missed the cache
+output fsm_busy; // asserted while FSM is busy handling the miss (can be used as pipeline stall signal)
+output write_data_array; // write enable to cache data array to signal when filling with memory_data
+output write_tag_array; // write enable to cache tag array to write tag and valid bit once all words are filled in to data array
+output [15:0] memory_address; // address to read from memory
+input [15:0] memory_data; // data returned by memory (after  delay)
+input memory_data_valid; // active high indicates valid data returning on memory bus
+
+
+wire next_state, cur_state; // current and next state signals
+wire add_chunk; // whether or not to increment chunks_received
+wire prop, gen, cout;  // unused signals for the 4bit CLA
+wire new_fsm_busy; // input to dff_fsm_busy
+wire new_write_tag_array; // input to dff_write_tag_array
+wire [3:0] chunks_received, new_chunks_received, d_new_chunks_received; // input and output to dff keeping track of the number of data chunks received
+wire [15:0] new_memory_address; // input to dff_memory_address
+
+dff dff_state(.clk(clk), .rst(~rst_n), .wen(1'b1), .d(next_state), .q(cur_state)); // cur_state = 0:IDLE ; 1:WAIT
+assign next_state = ((!cur_state) & (miss_detected)) 		? 1'b1 :
+		    (cur_state & (chunks_received == 4'b1000))	? 1'b0 :
+								  cur_state;
+
+
+CLA_4bit chunks(.In1(chunks_received), .In2(4'b0000), .cin(add_chunk), .Out(new_chunks_received), .Prop(prop), .Gen(gen), .cout(cout)); // adds 1 to chunks_received if a new chunk of data was received
+
+assign d_new_chunks_received = (fsm_busy) ? new_chunks_received : 4'h0;
+
+dff_4bit dff_chunks(.clk(clk), .rst(~rst_n), .wen(1'b1), .d(d_new_chunks_received), .q(chunks_received));
+
+
+assign new_add_chunk = (cur_state & memory_data_valid); // if in WAIT and there is new valid memory data
+dff dff_add_chunk(.clk(clk), .rst(~rst_n), .wen(1'b1), .d(new_add_chunk), .q(add_chunk));
+
+assign write_data_array = add_chunk; // can be asserted at the same time due to both signals needing to be asserted after every new data chunk is read
+
+
+assign new_memory_address = miss_detected ? miss_address : memory_address; // if a new miss is detected, send the miss address to memory to start receiving data
+dff_16bit dff_memory_address(.clk(clk), .rst(~rst_n), .wen(1'b1), .d(new_memory_address), .q(memory_address));
+
+
+dff dff_fsm_busy(.clk(clk), .rst(~rst_n), .wen(1'b1), .d(new_fsm_busy), .q(fsm_busy));
+assign new_fsm_busy = (!cur_state & next_state) ? 1'b1 : // on transition from IDLE to WAIT, set to 1
+		      (cur_state & !next_state) ? 1'b0 : // on transition from WAIT to IDLE, set to 0
+						  fsm_busy; // otherwise maintain current value
+
+
+assign new_write_tag_array = (cur_state & !next_state); // on transition from WAIT to IDLE, data transfer is done, tell cache to set tag and valid bits
+dff dff_write_tag_array(.clk(clk), .rst(~rst_n), .wen(1'b1), .d(new_write_tag_array), .q(write_tag_array));
+
+endmodule

@@ -126,8 +126,8 @@ cache_fill_FSM fsm(
 	.write_data_array      	(wen_data),
 	.write_tag_array	(wen_tag),
 	.memory_address   	(mem_address),
-	.memory_data      	(mem_data), //this is unused rn in implementation
-	.memory_data_valid	(data_valid)
+	.memory_data      		(mem_data), //this is unused rn in implementation
+	.memory_data_valid		(data_valid)
 );
 
 endmodule // cache
