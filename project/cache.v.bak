@@ -65,7 +65,7 @@ assign metadata_write = {1'b1, 2'b00, tag}; // 8 bits total , valid bit set
 * a. valid
 * b. tag matches
 **/
-assign miss_detected = metadata === 8'hzz | (!metadata[7]); //!(metadata[7] & (metadata[6:0] == tag)); //sign extension?
+assign miss_detected = (~(metadata[7] & (metadata[4:0] === tag))) & (wr | enable); //sign extension?
 
 assign mem_read = miss_detected; //only read on misses for both read and write
 assign mem_write = ~miss_detected & wr;   //only write on hits and if we're obviously writing...

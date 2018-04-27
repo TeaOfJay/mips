@@ -65,7 +65,7 @@ assign metadata_write = {1'b1, 2'b00, tag}; // 8 bits total , valid bit set
 * a. valid
 * b. tag matches
 **/
-assign miss_detected = metadata === 8'hzz | (!metadata[7]); //!(metadata[7] & (metadata[6:0] == tag)); //sign extension?
+assign miss_detected = (~(metadata[7] & (metadata[4:0] === tag))) & (wr | enable); //sign extension?
 
 assign mem_read = miss_detected; //only read on misses for both read and write
 assign mem_write = ~miss_detected & wr;   //only write on hits and if we're obviously writing...
@@ -93,6 +93,11 @@ word_decoder  wdecoder(
 	.word_enable(word_enable)
 );
 
+///////////////////////////////////////////////////
+//
+//      WORD ENABLE NEEDS TO BE EQUAL TO MEM ADDRESS
+//
+///////////////////////////////////////////////////
 //our actual cache memory
 DataArray data_array(
 	.clk 		(clk),
@@ -126,8 +131,8 @@ cache_fill_FSM fsm(
 	.write_data_array      	(wen_data),
 	.write_tag_array	(wen_tag),
 	.memory_address   	(mem_address),
-	.memory_data      	(mem_data), //this is unused rn in implementation
-	.memory_data_valid	(data_valid)
+	.memory_data      		(mem_data), //this is unused rn in implementation
+	.memory_data_valid		(data_valid)
 );
 
 endmodule // cache

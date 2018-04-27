@@ -49,10 +49,10 @@ assign new_memory_address = (miss_detected & ~old_miss_detected) ? miss_address 
 dff_16bit dff_memory_address(.clk(clk), .rst(~rst_n), .wen(1'b1), .d(new_memory_address), .q(memory_address));
 
 
-//dff dff_fsm_busy(.clk(clk), .rst(~rst_n), .wen(1'b1), .d(new_fsm_busy), .q(fsm_busy));
-assign fsm_busy = (!cur_state & next_state) ? 1'b1 : // on transition from IDLE to WAIT, set to 1
-		  (cur_state & next_state)  ? 1'b1 :  1'b0; // on transition from WAIT to IDLE, set to 0
-						  
+dff dff_fsm_busy(.clk(clk), .rst(~rst_n), .wen(1'b1), .d(new_fsm_busy), .q(fsm_busy));
+assign new_fsm_busy = (!cur_state & next_state) ? 1'b1 : // on transition from IDLE to WAIT, set to 1
+		      (cur_state & !next_state) ? 1'b0 : // on transition from WAIT to IDLE, set to 0
+						  fsm_busy; // otherwise maintain current value
 
 
 assign new_write_tag_array = (cur_state & !next_state); // on transition from WAIT to IDLE, data transfer is done, tell cache to set tag and valid bits
