@@ -1,5 +1,6 @@
 module cache_fill_FSM(clk, rst_n, miss_detected, miss_address, fsm_busy, write_data_array, write_tag_array,memory_address, memory_data, memory_data_valid);
 input clk, rst_n;
+
 input miss_detected; // active high when tag match logic detects a miss
 input [15:0] miss_address; // address that missed the cache
 output fsm_busy; // asserted while FSM is busy handling the miss (can be used as pipeline stall signal)
@@ -12,8 +13,13 @@ input memory_data_valid; // active high indicates valid data returning on memory
 wire old_miss_detected;
 wire next_state, cur_state; // current and next state signals
 wire add_chunk; // whether or not to increment chunks_received
+
+//unused can leave ports unconnected
 wire prop, gen, cout;  // unused signals for the 4bit CLA
 wire cout2;  // unused signal for the 16bit CLA
+
+
+//
 wire new_fsm_busy; // input to dff_fsm_busy
 wire new_write_tag_array; // input to dff_write_tag_array
 wire [3:0] chunks_received, new_chunks_received, d_new_chunks_received; // input and output to dff keeping track of the number of data chunks received
@@ -21,11 +27,16 @@ wire [15:0] new_memory_address; // input to dff_memory_address
 wire [15:0] fsm_address_inc; // Incremented address
 
 dff dff_state(.clk(clk), .rst(~rst_n), .wen(1'b1), .d(next_state), .q(cur_state)); // cur_state = 0:IDLE ; 1:WAIT
+
 assign next_state = ((!cur_state) & (miss_detected)) 		? 1'b1 :
 		    (cur_state & (chunks_received == 4'b1000))	? 1'b0 :
 								  cur_state;
 
+//address incrementation starts immediately
 CLA_16bit address_inc(.In1(memory_address), .In2(16'h0002), .cin(1'b0), .Sum(fsm_address_inc), .Ov(cout2));
+
+dff_16bit dff_memory_address(.clk(clk), .rst(~rst_n), .wen(1'b1), .d(new_memory_address), .q(memory_address));
+
 
 CLA_4bit chunks(.In1(chunks_received), .In2(4'b0000), .cin(add_chunk), .Out(new_chunks_received), .Prop(prop), .Gen(gen), .cout(cout)); // adds 1 to chunks_received if a new chunk of data was received
 
@@ -42,11 +53,10 @@ assign write_data_array = add_chunk; // can be asserted at the same time due to 
 
 dff dff_miss(.clk(clk), .rst(~rst_n), .wen(1'b1), .d(miss_detected), .q(old_miss_detected));
 
-assign new_memory_address = (miss_detected & ~old_miss_detected) ? miss_address :
-			    add_chunk	  			 ? fsm_address_inc  :
-					    		  	   memory_address; // if a new miss is detected, send the miss address to memory to start receiving data
+assign new_memory_address = (next_state) ? fsm_address_inc : miss_address; //always incrementing after
+//			    add_chunk	  			 ? fsm_address_inc  :
+//					    		  	   memory_address; // if a new miss is detected, send the miss address to memory to start receiving data
 
-dff_16bit dff_memory_address(.clk(clk), .rst(~rst_n), .wen(1'b1), .d(new_memory_address), .q(memory_address));
 
 
 //dff dff_fsm_busy(.clk(clk), .rst(~rst_n), .wen(1'b1), .d(new_fsm_busy), .q(fsm_busy));

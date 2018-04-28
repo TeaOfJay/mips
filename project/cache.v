@@ -25,10 +25,13 @@ wire[7:0] metadata_write;
 //fsm control
 wire[15:0] mem_address;
 wire wen_tag;  //tag write for metadata
-wire wen_data; //write to cache... do we write to memory at the same time with this signal? this may mean performing multiple writes since the signal is asserted multiple times.
+wire wen_data; //write data to cache
 wire data_valid;
 wire [15:0] mem_data;
 wire mem_write;
+wire miss_detected;
+
+wire[2:0] word_select;
 
 //cache addressing
 wire[3:0] 	block_offset;
@@ -50,7 +53,7 @@ assign tag          = addr[15:11];
 **/
 assign decode_address = addr[10:4]; //(enable) ? mem_address[10:4] : addr[10:4]; //do we need this? the decode address may be same for both write and read.
 
-assign word_address = (wr) ? mem_address[3:1] : addr[3:1];
+assign word_address = (miss_detected || wr) ? word_select : addr[3:1];
 
 //data
 assign metadata_write = {1'b1, 2'b00, tag}; // 8 bits total , valid bit set
@@ -122,17 +125,17 @@ MetaDataArray metadata_array(
 // tag is at max 5 bits 
 
 //fsm 
-cache_fill_FSM fsm(
+cache_fill_fsm fsm(
 	.clk 			(clk),  
 	.rst_n 			(~rst), 
 	.miss_detected 		(miss_detected), 
 	.miss_address  		(addr), 
 	.fsm_busy      		(busy),
-	.write_data_array      	(wen_data),
-	.write_tag_array	(wen_tag),
-	.memory_address   	(mem_address),
-	.memory_data      		(mem_data), //this is unused rn in implementation
-	.memory_data_valid		(data_valid)
+	.wen_data      	        (wen_data),
+	.wen_tag          	(wen_tag),
+	.mem_address   	(mem_address),
+	.mem_data_valid		(data_valid),
+	.word_enable        (word_select)
 );
 
 endmodule // cache
