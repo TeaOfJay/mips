@@ -9,20 +9,18 @@ module cache(
 	output busy
 );
 
+//wire declarations
 wire[6:0] decode_address;
 wire[2:0] word_address;
 
-// enable 
 wire[127:0] block_enable;
 wire[7:0]   word_enable;
 
-//data 
 wire[15:0] data;
 wire[7:0]  metadata;
 
 wire[7:0] metadata_write;
 
-//fsm control
 wire[15:0] mem_address;
 wire wen_tag;  //tag write for metadata
 wire wen_data; //write data to cache
@@ -40,7 +38,6 @@ wire[6:0] 	set_addr;
 wire[4:0]   tag; 	
 
 //address management 
-
 assign block_offset = addr[3:0];
 assign word_addr    = block_offset[3:1];  //block offset[0] is byte select for byte addressing, also unused
 assign set_addr     = addr[10:4]; //placeholder for visualization, remove once done.
@@ -53,15 +50,11 @@ assign tag          = addr[15:11];
 **/
 assign decode_address = addr[10:4]; //(enable) ? mem_address[10:4] : addr[10:4]; //do we need this? the decode address may be same for both write and read.
 
-assign word_address = (miss_detected || wr) ? word_select : addr[3:1];
+assign word_address = (wen_data) ? word_select : addr[3:1];
 
-//data
 assign metadata_write = {1'b1, 2'b00, tag}; // 8 bits total , valid bit set
 
-//TO-DO: note that for whatever reason n{} sign extension doesn't work in normal verilog (sadness) so we have to double check the sign extension comes out correctly in cache.v
-// this is noted through when the signals have braces around the two.
-
-//control signals
+// TO-DO: unsure that pipeline halts may not stop writing of register values
 
 /**
 * its considered a hit only if its 
