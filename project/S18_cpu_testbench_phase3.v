@@ -175,7 +175,7 @@ module cpu_ptb();
    assign Inst = DUT.Instr;
    //Instruction fetched in the current cycle
    
-   assign RegWrite = DUT.q_WriteReg;
+   assign RegWrite = DUT.q_WriteReg & ~DUT.ctrl_stall;
    // Is register file being written to in this cycle, one bit signal (1 means yes, 0 means no)
   
    assign WriteRegister = DUT.q_DstReg;

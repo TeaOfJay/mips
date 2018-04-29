@@ -82,6 +82,52 @@ assign memwb_en = (ctrl_stall) ? 1'b0 : 1'b1;
 
 assign ctrl_stall = (stall | inst_stall | data_stall);
 //////////////////////////////////////
+// multicycle memory
+
+// wire declarations for memory
+wire[15:0] mem_addr;
+wire[15:0] mem_wdata, mem_rdata;
+wire mem_ren, mem_wen;
+wire mem_data_valid;
+
+// wire declarations for connections to caches
+wire[15:0] i_rdata, i_wdata, i_addr;
+wire i_ren, i_wen;
+
+wire[15:0] d_rdata, d_wdata, d_addr;
+wire d_ren, d_wen;
+
+//wire declarations for control
+wire i_req;
+wire d_req;
+
+wire d_stall; //stall dcache
+
+assign i_req = (i_ren || i_wen); 
+assign d_req = (d_ren || d_wen);
+assign d_stall = (i_req == d_req & i_req);
+
+//memory permission allocation
+assign i_rdata = (i_req) ? mem_rdata : 16'bz;
+assign d_rdata = (d_req & ~i_req) ? mem_rdata : 16'bz ;
+
+assign mem_wdata = (i_req) ? i_wdata : d_wdata;
+assign mem_addr = (i_req) ? i_addr : d_addr;
+assign mem_ren = (i_req) ? i_ren : d_ren;
+assign mem_wen = (i_req) ? i_wen : d_wen;
+
+memory4c mem(
+	.data_out 			(mem_rdata),
+	.data_in			(mem_wdata),
+	.addr 			 	(mem_addr),
+	.enable 			(mem_ren),
+	.wr 				(mem_wen), 
+	.clk 				(clk),
+	.rst 				(~rst_n),
+	.data_valid 		(mem_data_valid)
+);
+
+///////////////////
 
 
 assign Instr_En = (~rst_n) ? 1'b0 : 1'b1; 
@@ -102,7 +148,14 @@ cache icache(
 	.wr(1'b0), 
 	.clk(clk), 
 	.rst(~rst_n),
-	.busy(inst_stall) 
+	.busy(inst_stall) ,
+	.stall(1'b0), //icache should never stall
+	.mem_rdata(i_rdata),
+	.mem_wdata(i_wdata),
+	.mem_addr(i_addr),
+	.mem_wen(i_wen),
+	.mem_ren(i_ren),
+	.mem_data_valid(mem_data_valid)
 );
 
 
@@ -234,7 +287,14 @@ cache dcache(
 	.wr(q_Data_Mem_wr),
 	.clk(clk),
 	.rst(~rst_n),
-	.busy(data_stall)
+	.busy(data_stall),
+	.stall(d_stall),
+	.mem_rdata(d_rdata),
+	.mem_wdata(d_wdata),
+	.mem_addr(d_addr),
+	.mem_wen(d_wen),
+	.mem_ren(d_ren),
+	.mem_data_valid(mem_data_valid)
 );
 
 // MEM/WB Pipeline

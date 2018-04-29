@@ -6,7 +6,15 @@ module cache(
 	input wr,     //write enable
 	input clk,
 	input rst,
-	output busy
+	output busy,
+	input stall,
+	
+	input[15:0] mem_rdata,
+	output[15:0] mem_wdata,
+	output[15:0] mem_addr,
+	output mem_ren,
+	output mem_wen,
+	input mem_data_valid
 );
 
 //wire declarations
@@ -16,17 +24,13 @@ wire[2:0] word_address;
 wire[127:0] block_enable;
 wire[7:0]   word_enable;
 
-wire[15:0] data;
+wire[15:0] data_write;
 wire[7:0]  metadata;
-
 wire[7:0] metadata_write;
 
-wire[15:0] mem_address;
 wire wen_tag;  //tag write for metadata
-wire wen_data; //write data to cache
+wire wen_cache; //write data to cache
 wire data_valid;
-wire [15:0] mem_data;
-wire mem_write;
 wire miss_detected;
 
 wire[2:0] word_select;
@@ -50,10 +54,11 @@ assign tag          = addr[15:11];
 **/
 assign decode_address = addr[10:4]; //(enable) ? mem_address[10:4] : addr[10:4]; //do we need this? the decode address may be same for both write and read.
 
-assign word_address = (wen_data) ? word_select : addr[3:1];
+assign word_address = (wen_cache) ? word_select : addr[3:1];
 
 assign metadata_write = {1'b1, 2'b00, tag}; // 8 bits total , valid bit set
 
+assign data_write = (mem_wen) ? data_in : mem_rdata;
 // TO-DO: unsure that pipeline halts may not stop writing of register values
 
 /**
@@ -63,20 +68,13 @@ assign metadata_write = {1'b1, 2'b00, tag}; // 8 bits total , valid bit set
 **/
 assign miss_detected = (~(metadata[7] & (metadata[4:0] === tag))) & (wr | enable); //sign extension?
 
-assign mem_read = miss_detected; //only read on misses for both read and write
-assign mem_write = ~miss_detected & wr;   //only write on hits and if we're obviously writing...
+//memory signal assignments
 
-//memory
-memory4c mem(
-	.data_out 			(mem_data),
-	.data_in			(data_in),
-	.addr 			 	(mem_address),
-	.enable 			(mem_read),
-	.wr 				(mem_write), 
-	.clk 				(clk),
-	.rst 				(rst),
-	.data_valid 		(data_valid)
-);
+// mem_rdata goes to data array
+assign mem_wdata = data_in;
+// mem_addr comes from fsm
+assign mem_ren = miss_detected; //only read on misses for both read and write
+assign mem_wen = ~miss_detected & wr;   //only write on hits and if we're obviously writing...
 
 //decoders
 cache_decoder cdecoder(
@@ -89,17 +87,12 @@ word_decoder  wdecoder(
 	.word_enable(word_enable)
 );
 
-///////////////////////////////////////////////////
-//
-//      WORD ENABLE NEEDS TO BE EQUAL TO MEM ADDRESS
-//
-///////////////////////////////////////////////////
 //our actual cache memory
 DataArray data_array(
 	.clk 		(clk),
 	.rst 		(rst),
-	.DataIn 	(mem_data),
-	.Write 		(wen_data), 
+	.DataIn 	(data_write),
+	.Write 		(wen_cache || mem_wen), 
 	.BlockEnable(block_enable),
 	.WordEnable (word_enable),
 	.DataOut 	(data_out) //one word, aka 2 bytes (is direct read from cache array ok?)
@@ -119,16 +112,17 @@ MetaDataArray metadata_array(
 
 //fsm 
 cache_fill_fsm fsm(
-	.clk 			(clk),  
-	.rst_n 			(~rst), 
+	.clk 				(clk),  
+	.rst_n 				(~rst), 
 	.miss_detected 		(miss_detected), 
 	.miss_address  		(addr), 
 	.fsm_busy      		(busy),
-	.wen_data      	        (wen_data),
+	.wen_cache      	(wen_cache),
 	.wen_tag          	(wen_tag),
-	.mem_address   	(mem_address),
-	.mem_data_valid		(data_valid),
-	.word_enable        (word_select)
+	.mem_address   		(mem_addr),
+	.mem_data_valid		(mem_data_valid),
+	.word_enable        (word_select),
+	.stall              (stall)
 );
 
 endmodule // cache
