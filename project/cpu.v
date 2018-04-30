@@ -77,8 +77,8 @@ wire ctrl_stall;
 //////////////////////////////////////
 assign ifid_en = (ctrl_stall) ? 1'b0 : 1'b1;
 assign idex_en = (ctrl_stall) ? 1'b0 : 1'b1;
-assign exmem_en = (ctrl_stall) ? 1'b0 : 1'b1;
-assign memwb_en = (ctrl_stall) ? 1'b0 : 1'b1;
+assign exmem_en = (data_stall) ? 1'b0 : 1'b1;
+assign memwb_en = (data_stall) ? 1'b0 : 1'b1;
 
 assign ctrl_stall = (stall | inst_stall | data_stall);
 //////////////////////////////////////
@@ -274,10 +274,13 @@ assign exmem_Data_Mem_en = (stall) ? 1'b0 : ex_Data_Mem_en;
 assign exmem_Data_Mem_wr = (stall) ? 1'b0 : ex_Data_Mem_wr;
 assign exmem_WriteReg    = (stall) ? 1'b0 : ex_WriteReg;
 
+//write register
+//mem is only srcdata2
+
 // EX/MEM Pipeline
 exmem dff_exmem(.clk(clk), .rst(~rst_n), .exmem_en(exmem_en), .d_hlt(ex_hlt), .d_from_mem(from_mem), .d_Data_Mem_en(exmem_Data_Mem_en), .d_Data_Mem_wr(exmem_Data_Mem_wr), .d_WriteReg(exmem_WriteReg), .d_DstReg(ex_DstReg), .d_Data_Mem_In(q_SrcData2), .d_Data_Mem_Addr(CLA_Sum), .d_DstData(DstData), .q_from_mem(mem_from_mem), .q_Data_Mem_en(q_Data_Mem_en), .q_Data_Mem_wr(q_Data_Mem_wr), .q_hlt(mem_hlt), .q_WriteReg(mem_WriteReg), .q_DstReg(mem_DstReg), .q_Data_Mem_In(q_Data_Mem_In), .q_Data_Mem_Addr(q_Data_Mem_Addr), .q_DstData(mem_DstData));
 
-
+//there may be an issue with datain
 // data cache
 cache dcache(
 	.data_out(Data_Mem_Out),

@@ -127,19 +127,20 @@ module cpu_ptb();
                   MemAddress,
                   MemDataIn,
 		  MemDataOut);
+
          if (RegWrite) begin
-            $fdisplay(trace_file,"REG: %d VALUE: 0x%04x",
-                      WriteRegister,
+            $fdisplay(trace_file,"PC: 0x%04x REG: %d VALUE: 0x%04x",
+                      PC, WriteRegister,
                       WriteData );            
          end
          if (MemRead) begin
-            $fdisplay(trace_file,"LOAD: ADDR: 0x%04x VALUE: 0x%04x",
-                      MemAddress, MemDataOut );
+            $fdisplay(trace_file,"PC: 0x%04x LOAD: ADDR: 0x%04x VALUE: 0x%04x",
+                      PC, MemAddress, MemDataOut );
          end
 
          if (MemWrite) begin
-            $fdisplay(trace_file,"STORE: ADDR: 0x%04x VALUE: 0x%04x",
-                      MemAddress, MemDataIn  );
+            $fdisplay(trace_file,"PC: 0x%04x STORE: ADDR: 0x%04x VALUE: 0x%04x",
+                      PC, MemAddress, MemDataIn  );
          end
          if (Halt) begin
             $fdisplay(sim_log_file, "SIMLOG:: Processor halted\n");
@@ -184,10 +185,10 @@ module cpu_ptb();
    assign WriteData = DUT.wb_data;
    // If above is true, this should hold the Data being written to the register. (16 bits)
    
-   assign MemRead =  (DUT.q_Data_Mem_en & ~DUT.q_Data_Mem_wr);
+   assign MemRead =  (DUT.q_Data_Mem_en & ~DUT.q_Data_Mem_wr) & ~DUT.ctrl_stall;
    // Is memory being read from, in this cycle. one bit signal (1 means yes, 0 means no)
    
-   assign MemWrite = (DUT.q_Data_Mem_en & DUT.q_Data_Mem_wr);
+   assign MemWrite = (DUT.q_Data_Mem_en & DUT.q_Data_Mem_wr) & ~DUT.ctrl_stall;
    // Is memory being written to, in this cycle (1 bit signal)
    
    assign MemAddress = DUT.q_Data_Mem_Addr;

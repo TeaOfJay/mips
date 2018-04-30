@@ -34,6 +34,7 @@ wire data_valid;
 wire miss_detected;
 
 wire[2:0] word_select;
+wire[15:0] fsm_addr;
 
 //cache addressing
 wire[3:0] 	block_offset;
@@ -72,7 +73,7 @@ assign miss_detected = (~(metadata[7] & (metadata[4:0] === tag))) & (wr | enable
 
 // mem_rdata goes to data array
 assign mem_wdata = data_in;
-// mem_addr comes from fsm
+assign mem_addr = (miss_detected) ? fsm_addr : addr;
 assign mem_ren = miss_detected; //only read on misses for both read and write
 assign mem_wen = ~miss_detected & wr;   //only write on hits and if we're obviously writing...
 
@@ -119,7 +120,7 @@ cache_fill_fsm fsm(
 	.fsm_busy      		(busy),
 	.wen_cache      	(wen_cache),
 	.wen_tag          	(wen_tag),
-	.mem_address   		(mem_addr),
+	.mem_address   		(fsm_addr),
 	.mem_data_valid		(mem_data_valid),
 	.word_enable        (word_select),
 	.stall              (stall)

@@ -30,7 +30,7 @@ dff state_dff(.q(state), .d(next_state), .wen(1'b1), .clk(clk), .rst(~rst_n));
 //chunk counter
 dff_4bit chunk_dff(.q(qchunk), .d(dchunk), .wen(1'b1), .clk(clk), .rst(~rst_n));
 
-CLA_4bit chunks(.In1(qchunk), .In2(4'b0000), .cin(1'b1), .Out(incr_chunk), .Prop(prop), .Gen(gen), .cout(cout)); // adds 1 to chunks_received if a new chunk of data was received
+CLA_4bit chunks(.In1(qchunk), .In2(4'b0000), .cin(1'b1), .Out(incr_chunk), .Prop(), .Gen(), .cout()); // adds 1 to chunks_received if a new chunk of data was received
 
 assign dchunk = (~stall & next_state & mem_data_valid) ? incr_chunk : 4'b1111;
 
@@ -39,8 +39,7 @@ dff_16bit addr_dff(.q(qaddr), .d(daddr), .wen(1'b1), .clk(clk), .rst(~rst_n));
 
 CLA_16bit addr(.In1(qaddr), .In2 (16'h0002), .cin(1'b0), .Sum(incr_address), .Ov());
 
-assign daddr = (~stall & next_state & ~(~dchunk[3] & dchunk[2])) ? incr_address : miss_address;
-
+assign daddr = (~stall & state & next_state & ~(~dchunk[3] & dchunk[2])) ? incr_address : miss_address;
 
 //state logic
 assign next_state = (~state & miss_detected) ? 1'b1 :
