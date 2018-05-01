@@ -37,9 +37,9 @@ assign dchunk = (~stall & next_state & mem_data_valid) ? incr_chunk : 4'b1111;
 //address incrementer
 dff_16bit addr_dff(.q(qaddr), .d(daddr), .wen(1'b1), .clk(clk), .rst(~rst_n));
 
-CLA_16bit addr(.In1(qaddr), .In2 (16'h0002), .cin(1'b0), .Sum(incr_address), .Ov());
+CLA_16bit addr(.In1(mem_address), .In2 (16'h0002), .cin(1'b0), .Sum(incr_address), .Ov());
 
-assign daddr = (~stall & state & next_state & ~(~dchunk[3] & dchunk[2])) ? incr_address : miss_address;
+assign daddr = (~stall & next_state & ~(~dchunk[3] & dchunk[2])) ? incr_address : miss_address;
 
 //state logic
 assign next_state = (~state & miss_detected) ? 1'b1 :
@@ -52,7 +52,7 @@ assign wen_cache = (state & next_state & ~receive_done & mem_data_valid) ? 1'b1 
 
 assign receive_done = (qchunk == 4'b0111);
 
-assign mem_address = qaddr;
+assign mem_address = (~state & next_state) ? miss_address : qaddr;
 
 assign word_enable = dchunk[2:0];
 

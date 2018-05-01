@@ -81,6 +81,11 @@ assign exmem_en = (data_stall) ? 1'b0 : 1'b1;
 assign memwb_en = (data_stall) ? 1'b0 : 1'b1;
 
 assign ctrl_stall = (stall | inst_stall | data_stall);
+
+//dff dff_raw(.q(pc), .d(next_address), .wen(pc_wen), .clk(clk), .rst(~rst_n));
+//
+wire[15:0] ex_mem_data;
+
 //////////////////////////////////////
 // multicycle memory
 
@@ -181,7 +186,41 @@ assign SrcReg2 = (Ctl_opcode[3:1] == 3'b101) ? Rd : Rt;
 // Registers
 RegisterFile RegFile(.clk(clk), .rst(~rst_n), .SrcReg1(SrcReg1), .SrcReg2(SrcReg2), .DstReg(q_DstReg), .WriteReg(q_WriteReg), .DstData(wb_data), .SrcData1(SrcData1), .SrcData2(SrcData2));
 
-idex dff_idex(.clk(clk), .rst(~rst_n), .flush(flush), .d_flush(q_flush), .idex_en(idex_en), .d_Data_Mem_en(Ctl_Data_Mem_en), .d_Data_Mem_wr(Ctl_Data_Mem_wr), .d_WriteReg(Ctl_WriteReg), .d_DstReg(Ctl_DstReg), .d_opcode(Ctl_opcode), .d_SrcData1(SrcData1), .d_SrcData2(SrcData2), .d_SrcReg1(SrcReg1), .d_SrcReg2(SrcReg2), .d_imm(imm), .d_Load_Imm(Load_Imm), .d_offset(offset), .d_Branch_Imm(Branch_Imm), .d_condition(condition), .ex_flush(ex_flush), .q_Data_Mem_en(ex_Data_Mem_en), .q_Data_Mem_wr(ex_Data_Mem_wr), .q_WriteReg(ex_WriteReg), .q_DstReg(ex_DstReg), .q_opcode(ex_opcode), .q_SrcData1(q_SrcData1), .q_SrcData2(q_SrcData2), .q_SrcReg1(q_SrcReg1), .q_SrcReg2(q_SrcReg2), .q_imm(q_imm), .q_Load_Imm(q_Load_Imm), .q_offset(q_offset), .q_Branch_Imm(q_Branch_Imm), .q_condition(q_condition));
+idex dff_idex(
+	.clk(clk), 
+	.rst(~rst_n), 
+	.flush(flush), 
+	.d_flush(q_flush), 
+	.idex_en(idex_en), 
+	.d_Data_Mem_en(Ctl_Data_Mem_en), 
+	.d_Data_Mem_wr(Ctl_Data_Mem_wr), 
+	.d_WriteReg(Ctl_WriteReg), 
+	.d_DstReg(Ctl_DstReg), 
+	.d_opcode(Ctl_opcode), 
+	.d_SrcData1(SrcData1), 
+	.d_SrcData2(SrcData2), 
+	.d_SrcReg1(SrcReg1), 
+	.d_SrcReg2(SrcReg2), 
+	.d_imm(imm), 
+	.d_Load_Imm(Load_Imm), 
+	.d_offset(offset), 
+	.d_Branch_Imm(Branch_Imm), 
+	.d_condition(condition), 
+	.ex_flush(ex_flush), 
+	.q_Data_Mem_en(ex_Data_Mem_en), 
+	.q_Data_Mem_wr(ex_Data_Mem_wr), 
+	.q_WriteReg(ex_WriteReg), 
+	.q_DstReg(ex_DstReg), 
+	.q_opcode(ex_opcode), 
+	.q_SrcData1(q_SrcData1), 
+	.q_SrcData2(q_SrcData2), 
+	.q_SrcReg1(q_SrcReg1), 
+	.q_SrcReg2(q_SrcReg2), 
+	.q_imm(q_imm), 
+	.q_Load_Imm(q_Load_Imm), 
+	.q_offset(q_offset), 
+	.q_Branch_Imm(q_Branch_Imm), 
+	.q_condition(q_condition));
 
 //Data Forwarding
 assign Data1 = (mem_WriteReg & (mem_DstReg != 4'b0000) & (q_SrcReg1 == mem_DstReg) & mem_from_mem) 	? Data_Mem_Out : //Forward in mem stage after read from Dmem
@@ -194,9 +233,13 @@ assign Data2 = (mem_WriteReg & (mem_DstReg != 4'b0000) & (q_SrcReg2 == mem_DstRe
 	       (q_WriteReg & (q_DstReg != 4'b0000) & (q_SrcReg2 == q_DstReg)) 				? q_DstData    : //Forward in wb stage
 											  		  q_SrcData2;    //No forward
 
+assign ex_mem_data = (q_WriteReg & (q_DstReg != 4'b0000) & (q_SrcReg2 == q_DstReg)) ? wb_data : //Forward in wb stage
+					 q_SrcData2;
 //Pipeline Stall
+
+
 assign next_stall = (stall)										? 1'b0 :
-		    ((ex_Data_Mem_en & ~ex_Data_Mem_wr) & ((ex_DstReg == Rs) || (ex_DstReg == Rt)))	? 1'b1 :
+		    ((ex_Data_Mem_en & ~ex_Data_Mem_wr) & ((ex_DstReg == Rs) | (ex_DstReg == Rt)))	? 1'b1 :
 													  1'b0;
 
 dff dff_stall(.clk(clk), .rst(~rst_n), .wen(1'b1), .d(next_stall), .q(stall));
@@ -270,15 +313,35 @@ RED red(.In1(Data1), .In2(Data2), .Out(Red_Out));
 XOR_16bit xor16(.A(Data1), .B(Data2), .X(XOR_Out));
 
 //used to be just stall
-assign exmem_Data_Mem_en = (stall) ? 1'b0 : ex_Data_Mem_en;
-assign exmem_Data_Mem_wr = (stall) ? 1'b0 : ex_Data_Mem_wr;
-assign exmem_WriteReg    = (stall) ? 1'b0 : ex_WriteReg;
+assign exmem_Data_Mem_en = (stall | data_stall) ? 1'b0 : ex_Data_Mem_en;
+assign exmem_Data_Mem_wr = (stall | data_stall) ? 1'b0 : ex_Data_Mem_wr;
+assign exmem_WriteReg    = (stall | data_stall) ? 1'b0 : ex_WriteReg;
 
 //write register
 //mem is only srcdata2
 
 // EX/MEM Pipeline
-exmem dff_exmem(.clk(clk), .rst(~rst_n), .exmem_en(exmem_en), .d_hlt(ex_hlt), .d_from_mem(from_mem), .d_Data_Mem_en(exmem_Data_Mem_en), .d_Data_Mem_wr(exmem_Data_Mem_wr), .d_WriteReg(exmem_WriteReg), .d_DstReg(ex_DstReg), .d_Data_Mem_In(q_SrcData2), .d_Data_Mem_Addr(CLA_Sum), .d_DstData(DstData), .q_from_mem(mem_from_mem), .q_Data_Mem_en(q_Data_Mem_en), .q_Data_Mem_wr(q_Data_Mem_wr), .q_hlt(mem_hlt), .q_WriteReg(mem_WriteReg), .q_DstReg(mem_DstReg), .q_Data_Mem_In(q_Data_Mem_In), .q_Data_Mem_Addr(q_Data_Mem_Addr), .q_DstData(mem_DstData));
+exmem dff_exmem(.clk(clk), 
+	.rst(~rst_n), 
+	.exmem_en(exmem_en), 
+	.d_hlt(ex_hlt), 
+	.d_from_mem(from_mem), 
+	.d_Data_Mem_en(exmem_Data_Mem_en), 
+	.d_Data_Mem_wr(exmem_Data_Mem_wr), 
+	.d_WriteReg(exmem_WriteReg), 
+	.d_DstReg(ex_DstReg), 
+	.d_Data_Mem_In(ex_mem_data), 
+	.d_Data_Mem_Addr(CLA_Sum), 
+	.d_DstData(DstData), 
+	.q_from_mem(mem_from_mem), 
+	.q_Data_Mem_en(q_Data_Mem_en), 
+	.q_Data_Mem_wr(q_Data_Mem_wr), 
+	.q_hlt(mem_hlt), 
+	.q_WriteReg(mem_WriteReg), 
+	.q_DstReg(mem_DstReg), 
+	.q_Data_Mem_In(q_Data_Mem_In), 
+	.q_Data_Mem_Addr(q_Data_Mem_Addr), 
+	.q_DstData(mem_DstData));
 
 //there may be an issue with datain
 // data cache
