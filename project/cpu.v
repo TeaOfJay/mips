@@ -77,8 +77,8 @@ wire ctrl_stall;
 //////////////////////////////////////
 assign ifid_en = (ctrl_stall) ? 1'b0 : 1'b1;
 assign idex_en = (ctrl_stall) ? 1'b0 : 1'b1;
-assign exmem_en = (data_stall) ? 1'b0 : 1'b1;
-assign memwb_en = (data_stall) ? 1'b0 : 1'b1;
+assign exmem_en = (ctrl_stall) ? 1'b0 : 1'b1;
+assign memwb_en = (ctrl_stall) ? 1'b0 : 1'b1;
 
 assign ctrl_stall = (stall | inst_stall | data_stall);
 
