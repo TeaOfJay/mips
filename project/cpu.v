@@ -68,7 +68,7 @@ wire [15:0] q_MemData, q_DstData;
 
 wire [15:0] wb_data;
 
-wire ex_hlt, mem_hlt;
+wire ex_hlt, mem_hlt, q_hlt;
 
 wire next_stall, stall, inst_stall, data_stall;
 wire ctrl_stall;
@@ -223,17 +223,17 @@ idex dff_idex(
 	.q_condition(q_condition));
 
 //Data Forwarding
-assign Data1 = (mem_WriteReg & (mem_DstReg != 4'b0000) & (q_SrcReg1 == mem_DstReg) & mem_from_mem) 	? Data_Mem_Out : //Forward in mem stage after read from Dmem
-	       (mem_WriteReg & (mem_DstReg != 4'b0000) & (q_SrcReg1 == mem_DstReg))			? mem_DstData  : //Forward in mem stage from calculation
-	       (q_WriteReg & (q_DstReg != 4'b0000) & (q_SrcReg1 == q_DstReg)) 				? wb_data      : //Forward in wb stage
+assign Data1 = (mem_WriteReg & (q_SrcReg1 == mem_DstReg) & mem_from_mem) 	? Data_Mem_Out : //Forward in mem stage after read from Dmem
+	       (mem_WriteReg & (q_SrcReg1 == mem_DstReg))			? mem_DstData  : //Forward in mem stage from calculation
+	       (q_WriteReg & (q_SrcReg1 == q_DstReg)) 				? wb_data      : //Forward in wb stage
 											  		  q_SrcData1;	 //No forward
 
-assign Data2 = (mem_WriteReg & (mem_DstReg != 4'b0000) & (q_SrcReg2 == mem_DstReg) & mem_from_mem) 	? Data_Mem_Out : //Forward in mem stage after read from Dmem
-	       (mem_WriteReg & (mem_DstReg != 4'b0000) & (q_SrcReg2 == mem_DstReg))			? mem_DstData  : //Forward in mem stage from calculation
-	       (q_WriteReg & (q_DstReg != 4'b0000) & (q_SrcReg2 == q_DstReg)) 				? q_DstData    : //Forward in wb stage
+assign Data2 = (mem_WriteReg & (q_SrcReg2 == mem_DstReg) & mem_from_mem) 	? Data_Mem_Out : //Forward in mem stage after read from Dmem
+	       (mem_WriteReg & (q_SrcReg2 == mem_DstReg))			? mem_DstData  : //Forward in mem stage from calculation
+	       (q_WriteReg & (q_SrcReg2 == q_DstReg)) 				? wb_data    : //Forward in wb stage
 											  		  q_SrcData2;    //No forward
 
-assign ex_mem_data = (q_WriteReg & (q_DstReg != 4'b0000) & (q_SrcReg2 == q_DstReg)) ? wb_data : //Forward in wb stage
+assign ex_mem_data = (q_WriteReg & (q_SrcReg2 == q_DstReg)) ? wb_data : //Forward in wb stage
 					 q_SrcData2;
 //Pipeline Stall
 
@@ -364,8 +364,9 @@ cache dcache(
 );
 
 // MEM/WB Pipeline
-memwb dff_memwb(.clk(clk), .rst(~rst_n), .memwb_en(memwb_en), .d_hlt(mem_hlt), .d_from_mem(mem_from_mem), .d_WriteReg(mem_WriteReg), .d_DstReg(mem_DstReg), .d_MemData(Data_Mem_Out), .d_DstData(mem_DstData), .q_hlt(hlt), .q_from_mem(q_from_mem), .q_WriteReg(q_WriteReg), .q_DstReg(q_DstReg), .q_MemData(q_MemData), .q_DstData(q_DstData));
+memwb dff_memwb(.clk(clk), .rst(~rst_n), .memwb_en(memwb_en), .d_from_mem(mem_from_mem), .d_WriteReg(mem_WriteReg), .d_DstReg(mem_DstReg), .d_MemData(Data_Mem_Out), .d_DstData(mem_DstData), .q_from_mem(q_from_mem), .q_WriteReg(q_WriteReg), .q_DstReg(q_DstReg), .q_MemData(q_MemData), .q_DstData(q_DstData));
 
+dff dff_hlt(.clk(clk), .rst(~rst_n), .wen(1'b1), .d(mem_hlt), .q(hlt));
 
 assign wb_data = (q_from_mem) ? q_MemData : q_DstData;
 
